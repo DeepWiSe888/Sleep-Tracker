@@ -1,0 +1,8 @@
+# numpy==1.19.5
+# scipy==1.5.2
+
+
+numpy
+scipy
+matplotlib
+seaborn
