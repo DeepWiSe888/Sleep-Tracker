@@ -72,8 +72,9 @@ def recvdata():
         recvBuffer = bytes()
         s = socket.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("",15647))  # ip 137.0.0.1
+        s.bind(("",13456))  # ip 137.0.0.1
         s.listen(1)
+        print("listening")
         conn,address = s.accept()
         print("be connected successfully.")
         while True:
@@ -212,7 +213,7 @@ def handle():
     distancelist = np.ones((120,))*0.4
     slowhistory = np.zeros((120,))
     fasthistory = np.zeros((120,))
-
+    sleeplist = np.ones((120,))*3
     
 
 
@@ -232,6 +233,7 @@ def handle():
     exist = 0
     noexist = 0
 
+    
 
     # csvfile = 'xethru_sleep_'+datetime.datetime.now().strftime("%Y%m%d_%H%M%S")+'.csv'
     # f =  open(csvfile,'w',newline='')
@@ -259,7 +261,6 @@ def handle():
                 org = iqdata1[:,:,0]+1j*iqdata1[:,:,1]
                 x = org[:,OFFSET:MAX_BIN]
 
-                ###不做相位校正，会影响心率的计算
                 pc = PhaseCorrection(x,1)
                 for i in range(FPS):
                     x[i,:] = pc.filter(x[i,:])
@@ -437,19 +438,25 @@ def handle():
                 slowhistory = slowhistory[1:]
                 fasthistory = np.append(fasthistory,fastper)
                 fasthistory = fasthistory[1:]
+                sleeplist = np.append(sleeplist,state)
+                sleeplist = sleeplist[1:]
+                
+                
                 
                 showrpm = 0
                 showrpm_s = 0
                 showbpm = 0
                 showamp = 0
                 showangle = 0
+            
+                
                 if breathing == 1:
                     showrpm = rpmlist[-1]
                     showrpm_s = rpmlist_s[-1]
                     showbpm = bpmlist[-1]
                     showamp = amplist[-1]
                     showangle = anglelist[-1]
-                
+            
 
 
                 #2018-08-20T21:49:31.153+08:00
@@ -466,23 +473,40 @@ def handle():
                 print(result)
                 
 
-                title = 'NoMovement'
+                title = 'Waiting...'
                 if state == 0:
-                    title = 'Breathing'
+                    title = 'Deep-Sleep'
                 elif state == 1:
-                    title = 'Movement'
+                    title = 'Light-Sleep'
                 elif state == 2:
-                    title = 'MovementTacking'
+                    title = 'Awake'
+                    
+                
 
-                fig = plt.figure('Wirush',figsize=(8,9))
+                fig = plt.figure('Sleep-Tracker',figsize=(8,9))
                 plt.clf()
                 fig.suptitle(title)
-                plt.subplots_adjust(left=0.075, bottom=0.050, right=0.925, top=0.950,
+                plt.subplots_adjust(left=0.15, bottom=0.050, right=0.925, top=0.950,
                                     wspace=0.145, hspace=0.290)
                 sns.set_style('darkgrid')
                 sns.axes_style()
 
-                plt.subplot(711)
+                plt.subplot(511)
+                plt.plot(sleeplist)
+                # plt.ylim(0.39,5.0)
+                sleepstate = ['Deep-Sleep','Light-Sleep','Awake','Waiting']
+                plt.legend(['Sleep-Traccker:{:.2f}'.format(sleeplist[-1])],loc='upper right')
+                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                plt.yticks([0,1,2,3],sleepstate)
+                
+            
+                plt.subplot(513)
+                plt.plot(distancelist)
+                plt.ylim(0.39,5.0)
+                plt.legend(['DISTANCE:{:.2f}'.format(distancelist[-1])],loc='upper right')
+                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                
+                plt.subplot(514)
                 plt.plot(rpmlist)
                 plt.ion()
                 plt.plot(rpmlist_s)
@@ -492,56 +516,51 @@ def handle():
                             'AVG RPM:{:.2f}'.format(showrpm_s)],loc='upper right')
                 plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
-                plt.subplot(712)
+                plt.subplot(515)
                 plt.plot(bpmlist)
                 plt.ylim(60,120)
                 plt.legend(['BPM:{:.1f}'.format(showbpm)],loc='upper right')
                 plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
-                plt.subplot(713)
-                plt.plot(amplist)
-                # plt.ylim(0.005,0.05)
-                plt.legend(['RPM AMP:{:.3f}'.format(showamp)],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                # plt.subplot(713)
+                # plt.plot(amplist)
+                # # plt.ylim(0.005,0.05)
+                # plt.legend(['RPM AMP:{:.3f}'.format(showamp)],loc='upper right')
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
-                plt.subplot(714)
-                plt.plot(anglelist)
-                plt.ylim(-5,5)
-                plt.legend(['RPM PATTERN:{:.1f}'.format(showangle)],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                # plt.subplot(714)
+                # plt.plot(anglelist)
+                # plt.ylim(-5,5)
+                # plt.legend(['RPM PATTERN:{:.1f}'.format(showangle)],loc='upper right')
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
                 
 
-                plt.subplot(715)
-                plt.plot(distancelist)
-                plt.ylim(0.39,5.0)
-                plt.legend(['DISTANCE:{:.2f}'.format(distancelist[-1])],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
-                plt.subplot(716)
+                plt.subplot(512)
                 plt.plot(slowhistory)
                 plt.ion()
                 plt.plot(fasthistory)
                 plt.ylim(0,100)
                 # plt.title('MOVEMENT HISTORY')
-                plt.legend(['SLOW:{:.2f}'.format(slowhistory[-1]),'FAST:{:.2f}'.format(fasthistory[-1])],loc='upper right')
+                plt.legend(['Slow-Movement:{:.2f}'.format(slowhistory[-1]),'Fast-Movement:{:.2f}'.format(fasthistory[-1])],loc='upper right')
                 plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
 
-                plt.subplot(7,2,13)
-                # plt.hist(slowlist,bins=MAX_BIN)
-                plt.bar(x=[i for i in range(MAX_BIN)], height=slowlist)
-                plt.ylim(0,100)
-                plt.xlim(0,MAX_BIN)
-                plt.legend(['MOVEMENT SLOW'],loc='upper right')
-                plt.xticks([0,20,40,60,80],[round(d*0.0514 + 0.4,2) for d in [0,20,40,60,80]])
+                # plt.subplot(7,2,13)
+                # # plt.hist(slowlist,bins=MAX_BIN)
+                # plt.bar(x=[i for i in range(MAX_BIN)], height=slowlist)
+                # plt.ylim(0,100)
+                # plt.xlim(0,MAX_BIN)
+                # plt.legend(['MOVEMENT SLOW'],loc='upper right')
+                # plt.xticks([0,20,40,60,80],[round(d*0.0514 + 0.4,2) for d in [0,20,40,60,80]])
 
-                plt.subplot(7,2,14)
-                # plt.hist(fastlist,bins=MAX_BIN)
-                plt.bar(x=[i for i in range(MAX_BIN)], height=fastlist,label='MOVEMENT FAST')
-                plt.ylim(0,100)
-                plt.xlim(0,MAX_BIN)
-                plt.legend(['MOVEMENT FAST'],loc='upper right')
-                plt.xticks([0,20,40,60,80],[round(d*0.0514 + 0.4,2) for d in [0,20,40,60,80]])
+                # plt.subplot(7,2,14)
+                # # plt.hist(fastlist,bins=MAX_BIN)
+                # plt.bar(x=[i for i in range(MAX_BIN)], height=fastlist,label='MOVEMENT FAST')
+                # plt.ylim(0,100)
+                # plt.xlim(0,MAX_BIN)
+                # plt.legend(['MOVEMENT FAST'],loc='upper right')
+                # plt.xticks([0,20,40,60,80],[round(d*0.0514 + 0.4,2) for d in [0,20,40,60,80]])
                 
 
                 
