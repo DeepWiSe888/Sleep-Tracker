@@ -60,7 +60,7 @@ def recvdata():
         recvBuffer = bytes()
         s = socket.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("",13456))  # ip 137.0.0.1
+        s.bind(("",13456))  # ip 192.168.1.111
         s.listen(1)
         print("listening")
         conn,address = s.accept()
