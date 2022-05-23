@@ -26,7 +26,7 @@ FPS = 20 * fps
 OFFSET = 0
 MAX_BIN = 93
 
-
+brpm,arpm = signal.butter(3,[0.1,0.5],'bandpass',analog=False,output='ba',fs=fps)
 
 class PhaseCorrection(object):
     def __init__(self, bbframes, bin_ref):
@@ -36,17 +36,6 @@ class PhaseCorrection(object):
     def filter(self, frame):
         phase_correction = self.bin_angle - np.angle(frame[self.bin_ref])
         return frame * np.exp(1j*phase_correction)
-
-class PhaseCorrection1(object):
-    def __init__(self, bbframes, bin_ref):
-        self.bin_ref = bin_ref
-        self.bin_angle = np.angle(bbframes[:,bin_ref]).mean()
-
-    def filter(self, frames):
-        phase_correction = self.bin_angle - np.angle(frames[:,self.bin_ref])
-        phc = np.exp(1j*phase_correction)
-        phc = phc.reshape(phc.shape[0],1)
-        return frames* phc
 
 class MyThread(threading.Thread):
     def __init__(self,func,args=()):
@@ -128,12 +117,15 @@ def calcuRPM(x,fastper,lastpeak):
         if fastper < 10:
             peak = lastpeak
     breathe = x[:,peak]
+    breathe = signal.filtfilt(brpm,arpm,breathe,axis=0)
     breathe_fft = abs(np.fft.fft(breathe))
     breathe_fft_max = np.max(breathe_fft[:int(len(breathe_fft)/2)])
     breathe_fft_max_index = (np.where(breathe_fft[:int(len(breathe_fft)/2)] == breathe_fft_max))[0][0]
     rpm = breathe_fft_max_index * fps/FPS * 60
     return rpm,peak,newpeak
-    
+
+
+
 def findpeak(in_arr):
     peaks = 0
     peakmax = 0
@@ -169,11 +161,11 @@ def handle():
     datas = np.zeros((1,138,2))
     frecv = True
     lastpeak = 0
-    peakchange = 0
+    
 
     distancelist = np.ones((120,))*0.4
-    slowhistory = np.zeros((120,))
-    fasthistory = np.zeros((120,))
+    movehistory = np.zeros((120,))
+ 
     
     
     sleeplist = np.ones((120,))*3
@@ -183,15 +175,14 @@ def handle():
 
     NoMovement = 1
     Movement = 0
-    Movementtacking = 0
+    Movementtracking = 0
     sleeping = 0
     state = 3
 
-    FMN = 0
-    FNMN = 0
+    MN = 0
+    NMN = 0
 
-    SMN = 0
-    SNMN = 0
+
 
     exists = 0
     exist = 0
@@ -222,29 +213,18 @@ def handle():
                 for i in range(FPS):
                     x[i,:] = pc.filter(x[i,:])
 
-                ###slow move
-                slowwin = 20*fps
-                slowiq = x
-                slowfft,slowlist,slowper = calcumove(slowiq,-47,10)
+                ### movement
+              
+                iq = x
+                _,movelist,moveper = calcumove(iq,-47,10)
 
-                ###fast move
-                fastwin = 6*fps
-                fastiq = x[FPS-fastwin:FPS,:]
-                fastfft,fastlist,fastper= calcumove(fastiq,-45,10)
-
-
-       
-
-                 ###calcu rpm 
-                rpm,peak,newpeak = calcuRPM(slowiq,fastper,lastpeak)
-               
-             
-        
+  
+                ###calcu rpm 
+                rpm,peak,newpeak= calcuRPM(iq,moveper,lastpeak)
 
                 ###exist
-                fastlistsum = np.sum(fastlist)
-                slowlistsum = np.sum(slowlist)
-                if fastlistsum > 0 or slowlistsum > 5:
+                movelistsum = np.sum(movelist)
+                if  movelistsum > 5:
                     exist += 1
                     noexist = 0
                 else:
@@ -255,97 +235,53 @@ def handle():
                 elif noexist > 10 and exists == 1:
                     exists = 0
                     
-
-              
-
-                if sleeping == 1 or Movementtacking == 1:
-                    lastpeak = peak
-                else:
-                    lastpeak = newpeak
-
                 distance = (peak) * 0.0514 + 0.4
-
-                
-                
-                if slowper > 5 or exists == 1:
-                    SMN += 1
-                    SNMN = 0
-                elif slowper <= 5 and fastper <= 5 :
-                    SMN  = 0
-                    SNMN += 1
-
-                if fastper > 10:
-                    if sleeping == 1:
-                        if np.where(fastlist >10 )[0][0] < peak:
-                            FMN +=1
-                            FNMN = 0
-                        else:
-                            FMN = 0
-                            FNMN += 1
-                    else:
-                        FMN +=1
-                        FNMN = 0
-                else:
-                    FMN = 0
-                    FNMN += 1
-
-
-                if NoMovement == 1 and slowper > 5:
-                    Movement = 1
-                    Movementtacking = 0
-                    NoMovement = 0
-                    sleeping = 0
-                    state = 1
                     
-                elif Movement == 1:
-                    if SNMN > 25:
-                        Movement = 0
-                        Movementtacking = 0
-                        NoMovement = 1
-                        sleeping = 0
-                        state = 3
-                    elif SMN >= 10  and FNMN >= 5:
-                        Movement = 0
-                        Movementtacking = 1
-                        NoMovement = 0
-                        sleeping = 0
-                        state = 2
-                elif Movementtacking == 1:
-                    if SMN >= 15  and FNMN >= 30:
-                        Movement = 0
-                        Movementtacking = 0
-                        NoMovement = 0
-                        sleeping = 1
-                        state = 0
-                    elif FMN > 5: # or  np.std(distancelist[-6:]) > 0.2
-                        Movement = 1
-                        Movementtacking = 0
-                        NoMovement = 0
-                        sleeping = 0
+                    
+                if exists == 1:
+                    
+                    if moveper > 15 :
+                        MN += 1
+                        NMN = 0
+                    elif moveper <= 10  :
+                        MN  = 0
+                        NMN += 1
+
+
+                    if NMN > 10:
+
                         state = 1
-                elif sleeping == 1:
-                    if FMN > 3: # or  np.std(distancelist[-6:]) > 0.2
-                        Movement = 1
-                        Movementtacking = 0
-                        NoMovement = 0
+                        sleeping = 1
+                        if NMN > 25:
+                            state = 0
+                    elif MN > 10:
                         sleeping = 0
                         state = 1
 
-                if exists == 0:
+                    elif sleeping == 1 :
+                        if MN > 10 :
+
+                            sleeping = 0
+                            state = 2  
+                    else :
+                        state = 2
+                            
+                else:
                     distance = 0
                     state = 3
             
-                    
-                
+                r1 = 'MN:{};NMN:{:.2f};moveper:{:.2f};sleeping:{:.2f}'.format(MN,NMN,moveper,sleeping)   
+                print(r1)
 
                 distancelist = np.append(distancelist,distance)
                 distancelist = distancelist[1:]
-                slowhistory = np.append(slowhistory,slowper)
-                slowhistory = slowhistory[1:]
-                fasthistory = np.append(fasthistory,fastper)
-                fasthistory = fasthistory[1:]
+                movehistory = np.append(movehistory,moveper)
+                movehistory = movehistory[1:]
+          
                 sleeplist = np.append(sleeplist,state)
                 sleeplist = sleeplist[1:]
+                
+                
                 if 6 < rpm < 30:
                     breathlist = np.append(breathlist,rpm)
                     breathlist = breathlist[1:]
@@ -355,10 +291,10 @@ def handle():
 
 
                 t2 = time.time()
-                result = 'State:{};Distance:{:.2f};MovementSlow:{:.2f};MovementFast:{:.2f},Time:{:.3f}'.format(state,distance,slowper,fastper,t2-t1)
+                result = 'State:{};Distance:{:.2f};Movement:{:.2f};RPM:{},Time:{:.3f}'.format(state,distance,moveper,rpm,t2-t1)
                 print(result)
                 
-
+                showrpm = 0
                 title = 'Waiting...'
                 if state == 0:
                     title = 'Deep-Sleep'
@@ -385,7 +321,8 @@ def handle():
                 # plt.ylim(0.39,5.0)
                 sleepstate = ['Deep-Sleep','Light-Sleep','Awake','Waiting']
                 plt.legend(['Sleep-Traccker:{:.2f}'.format(sleeplist[-1])],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                plt.xticks([0,20,40,60,80,100,120])
                 plt.yticks([0,1,2,3],sleepstate)
                 
             
@@ -393,26 +330,25 @@ def handle():
                 plt.plot(distancelist)
                 plt.ylim(0.39,5.0)
                 plt.legend(['DISTANCE:{:.2f}'.format(distancelist[-1])],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
-
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                plt.xticks([0,20,40,60,80,100,120])
 
 
                 plt.subplot(412)
-                plt.plot(slowhistory)
-                plt.ion()
-                plt.plot(fasthistory)
+                plt.plot(movehistory)
                 plt.ylim(0,100)
                 # plt.title('MOVEMENT HISTORY')
-                plt.legend(['Slow-Movement:{:.2f}'.format(slowhistory[-1]),'Fast-Movement:{:.2f}'.format(fasthistory[-1])],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                plt.legend(['Slow-Movement:{:.2f}'.format(movehistory[-1])],loc='upper right')
+                plt.xticks([0,20,40,60,80,100,120])
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
                 plt.subplot(414)
                 plt.plot(breathlist)
                 plt.ylim(8,30)
                 # plt.legend(['RPM:{:.1f}'.format(showrpm)],loc='upper right')
                 plt.legend(['RPM:{:.2f}'.format(showrpm)],loc='upper right')
-                plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
-
+                # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
+                plt.xticks([0,20,40,60,80,100,120])
 
                 
                 plt.ion()
