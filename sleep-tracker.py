@@ -5,7 +5,7 @@ from time import ctime
 import threading
 import time
 import struct
-from cv2 import BFMatcher_create
+# from cv2 import BFMatcher_create
 # import numpy.random.common
 # import numpy.random.bounded_integers
 # import numpy.random.entropy
@@ -338,14 +338,13 @@ def handle():
                 plt.plot(movehistory)
                 plt.ylim(0,100)
                 # plt.title('MOVEMENT HISTORY')
-                plt.legend(['Slow-Movement:{:.2f}'.format(movehistory[-1])],loc='upper right')
+                plt.legend(['Movement:{:.2f}'.format(movehistory[-1])],loc='upper right')
                 plt.xticks([0,20,40,60,80,100,120])
                 # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
 
                 plt.subplot(414)
                 plt.plot(breathlist)
-                plt.ylim(8,30)
-                # plt.legend(['RPM:{:.1f}'.format(showrpm)],loc='upper right')
+                plt.ylim(8,30)     
                 plt.legend(['RPM:{:.2f}'.format(showrpm)],loc='upper right')
                 # plt.xticks([0,20,40,60,80,100,120],[120,100,80,60,40,20,0])
                 plt.xticks([0,20,40,60,80,100,120])
